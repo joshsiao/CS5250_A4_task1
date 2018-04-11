@@ -7,18 +7,25 @@ Input file:
 Output files:
     FCFS.txt
     RR.txt
-    SRTF_1.txt
-    SRTF_2.txt
-    
-Apr 10th Revision 1: update FCFS implementation, fixed the bug when there are idle time slices between processes
-Thanks Huang Lung-Chen for pointing out
+    SRTF.txt
+    SJF.txt
+Apr 10th Revision 1:
+    Update FCFS implementation, fixed the bug when there are idle time slices between processes
+    Thanks Huang Lung-Chen for pointing out
+Revision 2:
+    Change requirement for future_prediction SRTF => future_prediction shortest job first(SJF), the simpler non-preemptive version.
+    Let initial guess = 5 time units.
+    Thanks Lee Wei Ping for trying and pointing out the difficulty & ambiguity with future_prediction SRTF.
 '''
 import sys
+from copy import deepcopy
 
 input_file = 'input.txt'
 
 class Process:
     last_scheduled_time = 0
+    remaining_work = 0
+    waiting_time = 0
     def __init__(self, id, arrive_time, burst_time):
         self.id = id
         self.arrive_time = arrive_time
@@ -41,17 +48,75 @@ def FCFS_scheduling(process_list):
     average_waiting_time = waiting_time/float(len(process_list))
     return schedule, average_waiting_time
 
+def RR_init(process_list):
+    for p in process_list:
+        p.remaining_work = p.burst_time
+
+def RR_enqueuework(process_list, curr_cycle, task_list):
+    for p in process_list:
+        if p.arrive_time == curr_cycle and p.remaining_work > 0:
+            task_list.append(p)
+            print('Enqueued pid %d'%(p.id))
+    return task_list
+
+def RR_haswork(process_list):
+    for p in process_list:
+        if p.remaining_work > 0:
+            return True
+    return False
+
+def RR_prochaswork(proc):
+    if proc.remaining_work == 0:
+        return False
+    else:
+        return True
+
 #Input: process_list, time_quantum (Positive Integer)
 #Output_1 : Schedule list contains pairs of (time_stamp, proccess_id) indicating the time switching to that proccess_id
 #Output_2 : Average Waiting Time
 def RR_scheduling(process_list, time_quantum ):
+    p_list = deepcopy(process_list)
+    RR_init(p_list)
+    curr_cycle = 0
+    curr_quantum = time_quantum
+    task_list = []
+    finished_tasks = []
+
+    #Check for work
+    while(RR_haswork(p_list)):
+        print('Cycle %d'%(curr_cycle))
+        task_list = RR_enqueuework(p_list, curr_cycle, task_list)
+        if task_list.count == 0:
+            curr_cycle += 1
+            continue;
+        p = task_list[0]
+        print('Executing pid %d'%(p.id))
+        p.remaining_work -= 1
+        curr_quantum -= 1
+        #For all other tasks in the list, add waiting time.
+        for i in range(1, len(task_list)):
+            task_list[i].waiting_time += 1
+        #If the task finished its work, remove it and reset the quantum.
+        if p.remaining_work == 0:
+            task_list.remove(p)
+            finished_tasks.append(p)
+            curr_quantum = time_quantum
+        #If the quantum is finished, but the work is not completed, push it to the back.
+        elif curr_quantum == 0:
+            task_list.remove(p)
+            task_list.append(p)
+            curr_quantum = time_quantum
+        curr_cycle += 1
+
+
+
     return (["to be completed, scheduling process_list on round robin policy with time_quantum"], 0.0)
 
-def SRTF_1_scheduling(process_list):
+def SRTF_scheduling(process_list):
     return (["to be completed, scheduling process_list on SRTF, using process.burst_time to calculate the remaining time of the current process "], 0.0)
 
-def SRTF_2_scheduling(process_list, alpha):
-    return (["to be completed, scheduling SRTF without using information from process.burst_time"],0.0)
+def SJF_scheduling(process_list, alpha):
+    return (["to be completed, scheduling SJF without using information from process.burst_time"],0.0)
 
 
 def read_input():
@@ -64,6 +129,7 @@ def read_input():
                 exit()
             result.append(Process(int(array[0]),int(array[1]),int(array[2])))
     return result
+
 def write_output(file_name, schedule, avg_waiting_time):
     with open(file_name,'w') as f:
         for item in schedule:
@@ -82,12 +148,12 @@ def main(argv):
     print ("simulating RR ----")
     RR_schedule, RR_avg_waiting_time =  RR_scheduling(process_list,time_quantum = 2)
     write_output('RR.txt', RR_schedule, RR_avg_waiting_time )
-    print ("simulating SRTF 1 ----")
-    SRTF_1_schedule, SRTF_1_avg_waiting_time =  SRTF_1_scheduling(process_list)
-    write_output('SRTF_1.txt', SRTF_1_schedule, SRTF_1_avg_waiting_time )
-    print ("simulating SRTF 2 ----")
-    SRTF_2_schedule, SRTF_2_avg_waiting_time =  SRTF_2_scheduling(process_list, alpha = 0.5)
-    write_output('SRTF_2.txt', SRTF_2_schedule, SRTF_2_avg_waiting_time )
+    print ("simulating SRTF ----")
+    SRTF_schedule, SRTF_avg_waiting_time =  SRTF_scheduling(process_list)
+    write_output('SRTF.txt', SRTF_schedule, SRTF_avg_waiting_time )
+    print ("simulating SJF ----")
+    SJF_schedule, SJF_avg_waiting_time =  SJF_scheduling(process_list, alpha = 0.5)
+    write_output('SJF.txt', SJF_schedule, SJF_avg_waiting_time )
 
 if __name__ == '__main__':
     main(sys.argv[1:])
