@@ -81,15 +81,24 @@ def RR_scheduling(process_list, time_quantum ):
     curr_quantum = time_quantum
     task_list = []
     finished_tasks = []
+    schedule = []
+    last_task = process_list[0]
 
     #Check for work
     while(RR_haswork(p_list)):
         print('Cycle %d'%(curr_cycle))
+        #Enqueue tasks that have arrived.
         task_list = RR_enqueuework(p_list, curr_cycle, task_list)
+        #If there is nothing to do, go to the next cycle.
         if task_list.count == 0:
             curr_cycle += 1
+            curr_quantum = time_quantum
             continue;
+        #Get the task at the head of the list.
         p = task_list[0]
+        if p != last_task:
+            schedule.append((curr_cycle, p.id));
+        last_task = p
         print('Executing pid %d'%(p.id))
         p.remaining_work -= 1
         curr_quantum -= 1
@@ -98,19 +107,24 @@ def RR_scheduling(process_list, time_quantum ):
             task_list[i].waiting_time += 1
         #If the task finished its work, remove it and reset the quantum.
         if p.remaining_work == 0:
+            print('  PID %d has finished and is removed.'%(p.id))
             task_list.remove(p)
             finished_tasks.append(p)
             curr_quantum = time_quantum
         #If the quantum is finished, but the work is not completed, push it to the back.
         elif curr_quantum == 0:
+            print('  PID %d has exhausted its quantum and is pushed to the back.'%(p.id))
             task_list.remove(p)
             task_list.append(p)
             curr_quantum = time_quantum
         curr_cycle += 1
 
+    total_waiting_time = 0.0
+    for t in finished_tasks:
+        total_waiting_time += t.waiting_time;
+    avg_waiting_time = total_waiting_time / len(finished_tasks)
 
-
-    return (["to be completed, scheduling process_list on round robin policy with time_quantum"], 0.0)
+    return (schedule, avg_waiting_time)
 
 def SRTF_scheduling(process_list):
     return (["to be completed, scheduling process_list on SRTF, using process.burst_time to calculate the remaining time of the current process "], 0.0)
