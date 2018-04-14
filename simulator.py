@@ -1,7 +1,10 @@
 '''
 CS5250 Assignment 4, Scheduling policies simulator
 Sample skeleton program
-Author: Minh Ho
+Original Author: Minh Ho
+Edited by: Joshua Siao
+Re-implementation of FCFS and implementation of RR, SRTF and SJF scheduling schemes.
+
 Input file:
     input.txt
 Output files:
@@ -24,109 +27,143 @@ input_file = 'input.txt'
 
 class Process:
     last_burst_prediction = 5
+    new_burst_prediction = 0
     last_scheduled_time = 0
-    remaining_work = 0
+    last_burst_time = 0
     waiting_time = 0
     def __init__(self, id, arrive_time, burst_time):
         self.id = id
         self.arrive_time = arrive_time
         self.burst_time = burst_time
+        self.remaining_work = burst_time
     #for printing purpose
     def __repr__(self):
         return ('[id %d : arrive_time %d,  burst_time %d]'%(self.id, self.arrive_time, self.burst_time))
 
-def FCFS_scheduling(process_list):
-    #store the (switching time, proccess_id) pair
-    schedule = []
-    current_time = 0
-    waiting_time = 0
-    for process in process_list:
-        if(current_time < process.arrive_time):
-            current_time = process.arrive_time
-        schedule.append((current_time,process.id))
-        waiting_time = waiting_time + (current_time - process.arrive_time)
-        current_time = current_time + process.burst_time
-    average_waiting_time = waiting_time/float(len(process_list))
-    return schedule, average_waiting_time
+def putToGlobalList(global_list, process):
+    for p in global_list:
+        if p.id == process.id:
+            p.waiting_time += process.waiting_time
+            p.last_burst_time = process.burst_time
+            return global_list
+    Exception()
 
-def RR_init(process_list):
-    for p in process_list:
-        p.remaining_work = p.burst_time
-
-def SRTF_init(process_list):
-    RR_init(process_list)
-
-def SJF_init(process_list):
-    RR_init(process_list)
-
-def RR_enqueuework(process_list, curr_cycle, task_list):
-    for p in process_list:
+#Returns task_list
+def RR_enqueuework(incoming_tasks, curr_cycle, task_schedule, global_list):
+    for p in incoming_tasks:
         if p.arrive_time == curr_cycle and p.remaining_work > 0:
-            task_list.append(p)
-            print('Enqueued pid %d'%(p.id))
-    return task_list
+            task_schedule.append(p)
+            #print('Enqueued pid %d'%(p.id))
+            #Append to the global list if never found before.
+            for pp in global_list:
+                if pp.id == p.id:
+                    return task_schedule #Do nothing but return the task_list.
+            global_list.append(deepcopy(p))
+    return task_schedule
 
-def SRTF_enqueuework(process_list, curr_cycle, task_list):
-    return RR_enqueuework(process_list, curr_cycle, task_list)
+def SRTF_enqueuework(process_list, curr_cycle, task_list, global_list):
+    return RR_enqueuework(process_list, curr_cycle, task_list, global_list)
 
-def SJF_enqueuework(process_list, curr_cycle, task_list):
-    return RR_enqueuework(process_list, curr_cycle, task_list)
+def SJF_enqueuework(process_list, curr_cycle, task_list, global_list):
+    return RR_enqueuework(process_list, curr_cycle, task_list, global_list)
 
-def RR_haswork(process_list):
+def haswork(process_list):
     for p in process_list:
         if p.remaining_work > 0:
             return True
     return False
 
-def SRTF_haswork(process_list):
-    return RR_haswork(process_list)
-
-def SJF_haswork(process_list):
-    return RR_haswork(process_list)
-
-def SRTF_findwork(process_list):
-    shortest_proc = process_list[0]
-    for p in process_list:
+#Put the process with the shortest remaining time at the head of the list.
+def SRTF_findwork(task_schedule):
+    shortest_proc = task_schedule[0]
+    for p in task_schedule:
         if(p.remaining_work < shortest_proc.remaining_work):
             shortest_proc = p
-    process_list.remove(shortest_proc)
-    process_list.insert(0, shortest_proc)
-    return process_list
+    task_schedule.remove(shortest_proc)
+    task_schedule.insert(0, shortest_proc)
+    return task_schedule
 
-def SJF_findwork(process_list, alpha):
+def SJF_findwork(task_schedule, alpha, global_list):
     #Predict the burst in every process
-    for p in process_list:
-        new_prediction = alpha * p.burst_time + (1 - alpha) * p.last_burst_prediction
-        p.last_burst_prediction = new_prediction
+    for p in task_schedule:
+        #Find the corresponding pid in global_list and get the last burst time.
+        for pp in global_list:
+            if p.id == pp.id:
+                p.last_burst_time = pp.last_burst_time
+        #The formula
+        p.new_burst_prediction = alpha * p.last_burst_time + (1.0 - alpha) * p.last_burst_prediction
     #Find the shortest process by looking for the lowest predicted burst
-    shortest_proc = process_list[0]
-    for p in process_list:
-        if(p.last_burst_prediction < shortest_proc.last_burst_prediction):
+    shortest_proc = task_schedule[0]
+    for p in task_schedule:
+        if(p.new_burst_prediction < shortest_proc.new_burst_prediction):
             shortest_proc = p
-    process_list.remove(shortest_proc)
-    process_list.insert(0, shortest_proc)
-    return process_list
+    shortest_proc.last_burst_prediction = shortest_proc.new_burst_prediction
+    task_schedule.remove(shortest_proc)
+    task_schedule.insert(0, shortest_proc)
+    return task_schedule
+
+
+def FCFS_scheduling(process_list):
+    p_list = deepcopy(process_list)
+    curr_cycle = 0
+    global_list = []  #List of all tasks scheduled
+    task_list = []    #Current task queue.
+    schedule = []
+    last_task = process_list[0]
+
+    #Check for work
+    while(haswork(p_list)):
+        print('Cycle %d'%(curr_cycle))
+        #Enqueue tasks that have arrived.
+        task_list = RR_enqueuework(p_list, curr_cycle, task_list, global_list)
+        #If there is nothing to do, go to the next cycle.
+        if len(task_list) == 0:
+            curr_cycle += 1
+            continue
+        #Get the task at the head of the list.
+        p = task_list[0]
+        if p != last_task:
+            schedule.append((curr_cycle, p.id));
+        last_task = p
+        print('Executing pid %d'%(p.id))
+        p.remaining_work -= 1
+        #For all other tasks in the list, add waiting time.
+        for i in range(1, len(task_list)):
+            task_list[i].waiting_time += 1
+        
+        #If the task finished its work, remove it and reset the quantum.
+        if p.remaining_work == 0:
+            print('  PID %d has finished and is removed.'%(p.id))
+            task_list.remove(p)
+            global_list = putToGlobalList(global_list, p);
+        curr_cycle += 1
+
+    total_waiting_time = 0.0
+    for t in global_list:
+        total_waiting_time += t.waiting_time;
+    avg_waiting_time = total_waiting_time / len(global_list)
+
+    return (schedule, avg_waiting_time)
 
 #Input: process_list, time_quantum (Positive Integer)
 #Output_1 : Schedule list contains pairs of (time_stamp, proccess_id) indicating the time switching to that proccess_id
 #Output_2 : Average Waiting Time
 def RR_scheduling(process_list, time_quantum ):
     p_list = deepcopy(process_list)
-    RR_init(p_list)
     curr_cycle = 0
     curr_quantum = time_quantum
-    task_list = []
-    finished_tasks = []
+    global_list = []  #List of all tasks scheduled
+    task_list = []    #Current task queue.
     schedule = []
     last_task = process_list[0]
 
     #Check for work
-    while(RR_haswork(p_list)):
-        print('Cycle %d'%(curr_cycle))
+    while(haswork(p_list)):
+        #print('Cycle %d'%(curr_cycle))
         #Enqueue tasks that have arrived.
-        task_list = RR_enqueuework(p_list, curr_cycle, task_list)
+        task_list = RR_enqueuework(p_list, curr_cycle, task_list, global_list)
         #If there is nothing to do, go to the next cycle.
-        if task_list.count == 0:
+        if len(task_list) == 0:
             curr_cycle += 1
             curr_quantum = time_quantum
             continue;
@@ -135,7 +172,7 @@ def RR_scheduling(process_list, time_quantum ):
         if p != last_task:
             schedule.append((curr_cycle, p.id));
         last_task = p
-        print('Executing pid %d'%(p.id))
+        #print('Executing pid %d'%(p.id))
         p.remaining_work -= 1
         curr_quantum -= 1
         #For all other tasks in the list, add waiting time.
@@ -143,41 +180,40 @@ def RR_scheduling(process_list, time_quantum ):
             task_list[i].waiting_time += 1
         #If the task finished its work, remove it and reset the quantum.
         if p.remaining_work == 0:
-            print('  PID %d has finished and is removed.'%(p.id))
+            #print('  PID %d has finished and is removed.'%(p.id))
             task_list.remove(p)
-            finished_tasks.append(p)
+            global_list = putToGlobalList(global_list, p);
             curr_quantum = time_quantum
         #If the quantum is finished, but the work is not completed, push it to the back.
         elif curr_quantum == 0:
-            print('  PID %d has exhausted its quantum and is pushed to the back.'%(p.id))
+            #print('  PID %d has exhausted its quantum and is pushed to the back.'%(p.id))
             task_list.remove(p)
             task_list.append(p)
             curr_quantum = time_quantum
         curr_cycle += 1
 
     total_waiting_time = 0.0
-    for t in finished_tasks:
+    for t in global_list:
         total_waiting_time += t.waiting_time;
-    avg_waiting_time = total_waiting_time / len(finished_tasks)
+    avg_waiting_time = total_waiting_time / len(global_list)
 
     return (schedule, avg_waiting_time)
 
 def SRTF_scheduling(process_list):
     p_list = deepcopy(process_list)
-    SRTF_init(p_list)
     curr_cycle = 0
-    task_list = []
-    finished_tasks = []
+    global_list = []  #List of all tasks scheduled
+    task_list = []    #Current task queue.
     schedule = []
     last_task = process_list[0]
 
     #Check for work
-    while(SRTF_haswork(p_list)):
+    while(haswork(p_list)):
         print('Cycle %d'%(curr_cycle))
         #Enqueue tasks that have arrived.
-        task_list = SRTF_enqueuework(p_list, curr_cycle, task_list)
+        task_list = SRTF_enqueuework(p_list, curr_cycle, task_list, global_list)
         #If there is nothing to do, go to the next cycle.
-        if task_list.count == 0:
+        if len(task_list) == 0:
             curr_cycle += 1
             continue;
         #Find the task with the shortest job
@@ -196,63 +232,62 @@ def SRTF_scheduling(process_list):
         if p.remaining_work == 0:
             print('  PID %d has finished and is removed.'%(p.id))
             task_list.remove(p)
-            finished_tasks.append(p)
+            global_list = putToGlobalList(global_list, p)
         curr_cycle += 1
 
     total_waiting_time = 0.0
-    for t in finished_tasks:
+    for t in global_list:
         total_waiting_time += t.waiting_time;
-    avg_waiting_time = total_waiting_time / len(finished_tasks)
+    avg_waiting_time = total_waiting_time / len(global_list)
 
     return (schedule, avg_waiting_time)
 
 
 def SJF_scheduling(process_list, alpha):
     p_list = deepcopy(process_list)
-    SJF_init(p_list)
     curr_cycle = 0
+    global_list = []
     task_list = []
-    finished_tasks = []
     schedule = []
     last_task = process_list[0]
     last_prediction = 5
     find_new_task = True
 
     #Check for work
-    while(SJF_haswork(p_list)):
-        print('Cycle %d'%(curr_cycle))
+    while(haswork(p_list)):
+        #print('Cycle %d'%(curr_cycle))
         #Enqueue tasks that have arrived.
-        task_list = SJF_enqueuework(p_list, curr_cycle, task_list)
+        task_list = SJF_enqueuework(p_list, curr_cycle, task_list, global_list)
         #If there is nothing to do, go to the next cycle.
-        if task_list.count == 0:
+        if len(task_list) == 0:
             curr_cycle += 1
             continue;
         #Find the task with the shortest job
         if find_new_task == True:
-            task_list = SJF_findwork(task_list, alpha)
+            task_list = SJF_findwork(task_list, alpha, global_list)
             find_new_task = False
         #Shortest job is now at the front.
         p = task_list[0]
         if p != last_task:
             schedule.append((curr_cycle, p.id));
         last_task = p
-        print('Executing pid %d'%(p.id))
+        #print('Executing pid %d'%(p.id))
         p.remaining_work -= 1
         #For all other tasks in the list, add waiting time.
         for i in range(1, len(task_list)):
             task_list[i].waiting_time += 1
         #If the task finished its work, remove it.
         if p.remaining_work == 0:
-            print('  PID %d has finished and is removed.'%(p.id))
+            #print('  PID %d has finished and is removed.'%(p.id))
             task_list.remove(p)
-            finished_tasks.append(p)
+            global_list = putToGlobalList(global_list, p)
             find_new_task = True
         curr_cycle += 1
 
     total_waiting_time = 0.0
-    for t in finished_tasks:
+    for t in global_list:
         total_waiting_time += t.waiting_time;
-    avg_waiting_time = total_waiting_time / len(finished_tasks)
+    avg_waiting_time = total_waiting_time / len(global_list)
 
     return (schedule, avg_waiting_time)
 
@@ -293,5 +328,16 @@ def main(argv):
     SJF_schedule, SJF_avg_waiting_time =  SJF_scheduling(process_list, alpha = 0.5)
     write_output('SJF.txt', SJF_schedule, SJF_avg_waiting_time )
 
+    #Finding optimal RR_time_quantum
+    for tq in range(1, 13):
+        RR_schedule, RR_avg_waiting_time =  RR_scheduling(process_list,time_quantum = tq)
+        print(tq, RR_avg_waiting_time)
+        write_output('RR_o.txt', RR_schedule, RR_avg_waiting_time )
+    #Finding optimal alpha
+    testalpha = 0.0
+    for i in range (0, 11):
+        schedule, waiting_time2 = SJF_scheduling(process_list, testalpha)
+        print(testalpha, waiting_time2)
+        testalpha = testalpha + 0.1
 if __name__ == '__main__':
     main(sys.argv[1:])
