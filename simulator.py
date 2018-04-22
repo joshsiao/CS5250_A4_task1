@@ -53,7 +53,7 @@ def RR_enqueuework(incoming_tasks, curr_cycle, task_schedule, global_list):
     for p in incoming_tasks:
         if p.arrive_time == curr_cycle and p.remaining_work > 0:
             task_schedule.append(p)
-            #print('Enqueued pid %d'%(p.id))
+            print('  pid %d has arrived.'%(p.id))
             #Append to the global list if never found before.
             for pp in global_list:
                 if pp.id == p.id:
@@ -104,11 +104,11 @@ def SJF_findwork(task_schedule, alpha, global_list):
 
 
 def FCFS_scheduling(process_list):
-    p_list = deepcopy(process_list)
-    curr_cycle = 0
-    global_list = []  #List of all tasks scheduled
-    task_list = []    #Current task queue.
-    schedule = []
+    p_list = deepcopy(process_list) #Copy of process_list
+    curr_cycle = 0                  #Current 'clock cycle'
+    global_list = []                #List of all tasks ever scheduled
+    task_list = []                  #Queue of tasks that have arrived have and not yet completed their work.
+    schedule = []                   #The output schedule for printing.
     last_task = process_list[0]
 
     #Check for work
@@ -133,7 +133,7 @@ def FCFS_scheduling(process_list):
         
         #If the task finished its work, remove it and reset the quantum.
         if p.remaining_work == 0:
-            print('  PID %d has finished and is removed.'%(p.id))
+            print('  pid %d has finished and is removed.'%(p.id))
             task_list.remove(p)
             global_list = putToGlobalList(global_list, p);
         curr_cycle += 1
@@ -149,17 +149,17 @@ def FCFS_scheduling(process_list):
 #Output_1 : Schedule list contains pairs of (time_stamp, proccess_id) indicating the time switching to that proccess_id
 #Output_2 : Average Waiting Time
 def RR_scheduling(process_list, time_quantum ):
-    p_list = deepcopy(process_list)
-    curr_cycle = 0
-    curr_quantum = time_quantum
-    global_list = []  #List of all tasks scheduled
-    task_list = []    #Current task queue.
-    schedule = []
+    p_list = deepcopy(process_list) #Copy of process_list
+    curr_cycle = 0                  #Current 'clock cycle'
+    curr_quantum = time_quantum     #The time quantum left in the current cycle.
+    global_list = []                #List of all tasks ever scheduled
+    task_list = []                  #Queue of tasks that have arrived have and not yet completed their work.
+    schedule = []                   #The output schedule for printing.
     last_task = process_list[0]
 
     #Check for work
     while(haswork(p_list)):
-        #print('Cycle %d'%(curr_cycle))
+        print('Cycle %d'%(curr_cycle))
         #Enqueue tasks that have arrived.
         task_list = RR_enqueuework(p_list, curr_cycle, task_list, global_list)
         #If there is nothing to do, go to the next cycle.
@@ -172,7 +172,7 @@ def RR_scheduling(process_list, time_quantum ):
         if p != last_task:
             schedule.append((curr_cycle, p.id));
         last_task = p
-        #print('Executing pid %d'%(p.id))
+        print('Executing pid %d'%(p.id))
         p.remaining_work -= 1
         curr_quantum -= 1
         #For all other tasks in the list, add waiting time.
@@ -180,13 +180,13 @@ def RR_scheduling(process_list, time_quantum ):
             task_list[i].waiting_time += 1
         #If the task finished its work, remove it and reset the quantum.
         if p.remaining_work == 0:
-            #print('  PID %d has finished and is removed.'%(p.id))
+            print('  pid %d has finished and is removed.'%(p.id))
             task_list.remove(p)
             global_list = putToGlobalList(global_list, p);
             curr_quantum = time_quantum
         #If the quantum is finished, but the work is not completed, push it to the back.
         elif curr_quantum == 0:
-            #print('  PID %d has exhausted its quantum and is pushed to the back.'%(p.id))
+            print('  pid %d has exhausted its quantum and is pushed to the back.'%(p.id))
             task_list.remove(p)
             task_list.append(p)
             curr_quantum = time_quantum
@@ -200,12 +200,12 @@ def RR_scheduling(process_list, time_quantum ):
     return (schedule, avg_waiting_time)
 
 def SRTF_scheduling(process_list):
-    p_list = deepcopy(process_list)
-    curr_cycle = 0
-    global_list = []  #List of all tasks scheduled
-    task_list = []    #Current task queue.
-    schedule = []
-    last_task = process_list[0]
+    p_list = deepcopy(process_list) #Copy of process_list
+    curr_cycle = 0                  #Current 'clock cycle'
+    global_list = []                #List of all tasks ever scheduled
+    task_list = []                  #Queue of tasks that have arrived have and not yet completed their work.
+    schedule = []                   #The output schedule for printing.
+    last_task = process_list[0]     
 
     #Check for work
     while(haswork(p_list)):
@@ -230,7 +230,7 @@ def SRTF_scheduling(process_list):
             task_list[i].waiting_time += 1
         #If the task finished its work, remove it.
         if p.remaining_work == 0:
-            print('  PID %d has finished and is removed.'%(p.id))
+            print('  pid %d has finished and is removed.'%(p.id))
             task_list.remove(p)
             global_list = putToGlobalList(global_list, p)
         curr_cycle += 1
@@ -244,18 +244,17 @@ def SRTF_scheduling(process_list):
 
 
 def SJF_scheduling(process_list, alpha):
-    p_list = deepcopy(process_list)
-    curr_cycle = 0
-    global_list = []
-    task_list = []
-    schedule = []
+    p_list = deepcopy(process_list) #Copy of process_list
+    curr_cycle = 0                  #Current 'clock cycle'
+    global_list = []                #List of all tasks ever scheduled
+    task_list = []                  #Queue of tasks that have arrived have and not yet completed their work.
+    schedule = []                   #The output schedule for printing.
     last_task = process_list[0]
-    last_prediction = 5
     find_new_task = True
 
     #Check for work
     while(haswork(p_list)):
-        #print('Cycle %d'%(curr_cycle))
+        print('Cycle %d'%(curr_cycle))
         #Enqueue tasks that have arrived.
         task_list = SJF_enqueuework(p_list, curr_cycle, task_list, global_list)
         #If there is nothing to do, go to the next cycle.
@@ -271,14 +270,14 @@ def SJF_scheduling(process_list, alpha):
         if p != last_task:
             schedule.append((curr_cycle, p.id));
         last_task = p
-        #print('Executing pid %d'%(p.id))
+        print('Executing pid %d'%(p.id))
         p.remaining_work -= 1
         #For all other tasks in the list, add waiting time.
         for i in range(1, len(task_list)):
             task_list[i].waiting_time += 1
         #If the task finished its work, remove it.
         if p.remaining_work == 0:
-            #print('  PID %d has finished and is removed.'%(p.id))
+            print('  pid %d has finished and is removed.'%(p.id))
             task_list.remove(p)
             global_list = putToGlobalList(global_list, p)
             find_new_task = True
@@ -329,15 +328,24 @@ def main(argv):
     write_output('SJF.txt', SJF_schedule, SJF_avg_waiting_time )
 
     #Finding optimal RR_time_quantum
+    print('Finding Optimal RR Quantum')
+    RR_result_list = []
     for tq in range(1, 13):
         RR_schedule, RR_avg_waiting_time =  RR_scheduling(process_list,time_quantum = tq)
-        print(tq, RR_avg_waiting_time)
-        write_output('RR_o.txt', RR_schedule, RR_avg_waiting_time )
+        RR_result_list.append((tq, RR_avg_waiting_time))
     #Finding optimal alpha
+    print('Finding Optimal SJF alpha')
+    SJF_result_list = []
     testalpha = 0.0
     for i in range (0, 11):
-        schedule, waiting_time2 = SJF_scheduling(process_list, testalpha)
-        print(testalpha, waiting_time2)
+        SJF_schedule, SJF_avg_waiting_time = SJF_scheduling(process_list, testalpha)
+        SJF_result_list.append((testalpha, SJF_avg_waiting_time))
         testalpha = testalpha + 0.1
+    print('RR Quantum Test Results: time_quantum, avg_waiting_time')
+    for r in RR_result_list:
+        print(r)
+    print('SJF alpha Test Results: alpha, avg_waiting_time')
+    for r in SJF_result_list:
+        print(r)
 if __name__ == '__main__':
     main(sys.argv[1:])
